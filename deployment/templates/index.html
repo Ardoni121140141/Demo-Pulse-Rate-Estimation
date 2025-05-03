@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>rPPG Pulse Rate Detection</title>
+
+    <!-- Font ala monitor medis -->
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            text-align: center;
+            font-family: 'Share Tech Mono', monospace;
+            background-color: #1a1a1a;
+            color: white;
+        }
+        #video-container {
+            display: flex;
+            justify-content: center;
+            margin-top: 20px;
+        }
+        img {
+            border: 2px solid #00ff00;
+            border-radius: 8px;
+        }
+        #controls {
+            margin-top: 20px;
+        }
+        button {
+            padding: 10px 25px;
+            margin: 0 10px;
+            font-size: 16px;
+            cursor: pointer;
+            background-color: #0088ff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        button:hover {
+            background-color: #0066cc;
+        }
+        button#stopBtn {
+            background-color: #ff4433;
+        }
+        button#stopBtn:hover {
+            background-color: #cc3322;
+        }
+        button:disabled {
+            background-color: #555;
+            cursor: not-allowed;
+        }
+        #plot-container {
+            margin: 20px auto;
+            border: 2px solid #00ff00;
+            width: 640px;
+            height: 200px;
+            position: relative;
+            overflow: hidden;
+            background-color: black;
+            border-radius: 8px;
+        }
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+        #pulse-rate {
+            font-size: 24px;
+            color: #00ff00;
+            margin: 20px 0;
+            font-weight: bold;
+        }
+        h1 {
+            color: #00ff00;
+        }
+    </style>
+</head>
+<body>
+    <h1>Demo Pulse Rate Estimation</h1>
+
+    <div id="video-container">
+        <img id="video-feed" src="/video_feed" width="640" height="480">
+    </div>
+
+    <div id="controls">
+        <button id="startBtn" onclick="startRecording()">Start</button>
+        <button id="stopBtn" onclick="stopRecording()" disabled>Stop</button>
+    </div>
+
+    <h2 id="pulse-rate">Pulse Rate: Waiting...</h2>
+
+    <div id="plot-container">
+        <canvas id="rppgCanvas" width="640" height="200"></canvas>
+    </div>
+
+    <script>
+        let canvas = document.getElementById("rppgCanvas");
+        let ctx = canvas.getContext("2d");
+
+        let isRecording = false;
+        let dataPoints = Array(640).fill(100);
+        let signalAmplification = 60;  // Adjusted for normalized input
+        let baselineY = 100;
+        let animationInProgress = false;
+
+        function initGraph() {
+            ctx.fillStyle = "black";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            drawCenterLine();
+            drawGraph();
+        }
+
+        function drawCenterLine() {
+            ctx.beginPath();
+            ctx.strokeStyle = "#003300";
+            ctx.lineWidth = 1;
+            ctx.moveTo(0, baselineY);
+            ctx.lineTo(canvas.width, baselineY);
+            ctx.stroke();
+        }
+
+        function processNewSignal(newData) {
+            if (!isRecording || !newData || newData.length === 0) return;
+            
+            // Wait for any ongoing animation to complete
+            if (animationInProgress) return;
+            
+            let processedData = newData.map(val => baselineY - (val - 0.5) * signalAmplification);
+            animateSignal(processedData);
+        }
+
+        function animateSignal(newPoints, index = 0) {
+            if (!isRecording || index >= newPoints.length) {
+                animationInProgress = false;
+                return;
+            }
+            
+            animationInProgress = true;
+
+            // Shift all data points left by one position
+            for (let i = 0; i < dataPoints.length - 1; i++) {
+                dataPoints[i] = dataPoints[i + 1];
+            }
+            
+            // Add new point at the end
+            dataPoints[dataPoints.length - 1] = newPoints[index];
+
+            // Redraw the entire graph
+            drawGraph();
+
+            // Continue animation with next point
+            setTimeout(() => {
+                animateSignal(newPoints, index + 1);
+            }, 20);
+        }
+
+        function drawGraph() {
+            // Clear the entire canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = "black";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw center reference line
+            drawCenterLine();
+
+            // Create gradient for line fading effect
+            let gradient = ctx.createLinearGradient(0, 0, canvas.width, 0);
+            gradient.addColorStop(0, "rgba(0, 255, 0, 1)");
+            gradient.addColorStop(0.9, "rgba(0, 255, 0, 0.3)");
+            gradient.addColorStop(1, "rgba(0, 255, 0, 0)");
+
+            // Draw the signal line
+            ctx.beginPath();
+            ctx.strokeStyle = gradient;
+            ctx.lineWidth = 2;
+            
+            // Begin path at first point
+            ctx.moveTo(0, dataPoints[0]);
+            
+            // Draw smooth curve through all points
+            for (let i = 1; i < dataPoints.length; i++) {
+                ctx.lineTo(i, dataPoints[i]);
+            }
+            
+            ctx.stroke();
+        }
+
+        function startRecording() {
+            fetch('/start_recording', { method: 'POST' })
+                .then(response => response.json())
+                .then(data => {
+                    isRecording = true;
+                    document.getElementById('startBtn').disabled = true;
+                    document.getElementById('stopBtn').disabled = false;
+
+                    initGraph();
+                    getRealTimeSignal();
+                    checkPulseRate();
+                })
+                .catch(error => {
+                    console.error('Error starting recording:', error);
+                    alert('Failed to start recording. Please try again.');
+                });
+        }
+
+        function stopRecording() {
+            isRecording = false;
+            document.getElementById('startBtn').disabled = false;
+            document.getElementById('stopBtn').disabled = true;
+            document.getElementById('pulse-rate').innerText = "Pulse Rate: Stopped";
+
+            fetch('/stop_recording', { method: 'POST' })
+                .then(response => response.json())
+                .catch(error => console.error('Error stopping recording:', error));
+        }
+
+        function getRealTimeSignal() {
+            if (!isRecording) return;
+
+            fetch('/rppg_plot')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.signal && data.signal.length > 0) {
+                        processNewSignal(data.signal);
+                    }
+                    if (isRecording) setTimeout(getRealTimeSignal, 1000);
+                })
+                .catch(error => {
+                    console.error('Error fetching signal data:', error);
+                    if (isRecording) setTimeout(getRealTimeSignal, 1000);
+                });
+        }
+
+        function checkPulseRate() {
+            if (!isRecording) return;
+
+            fetch('/get_pulse_rate')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.pulse_rate && data.pulse_rate !== "Processing...") {
+                        document.getElementById('pulse-rate').innerText = `Pulse Rate: ${data.pulse_rate} BPM`;
+                    }
+                    if (isRecording) setTimeout(checkPulseRate, 1000);
+                })
+                .catch(error => {
+                    console.error('Error fetching pulse rate:', error);
+                    if (isRecording) setTimeout(checkPulseRate, 1000);
+                });
+        }
+
+        initGraph();
+    </script>
+</body>
+</html>
