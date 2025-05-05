@@ -59,7 +59,7 @@ python --version
 <li> Open a terminal / something like GitBash etc. Please clone this Repository by following the following command and copy it in your terminal: </li>
 
 ```bash
-    git clone https://github.com/Ardoni121140141/ta_ardoni_121140141.git
+    git clone https://github.com/Ardoni121140141/Demo-Pulse-Rate-Estimation.git
 ```
 
 <li>Please change the directory to point to the clone folder with the following command:</li>
