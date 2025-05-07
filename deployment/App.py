@@ -123,21 +123,20 @@ def process_rppg_live():
                 filtered = signal.filtfilt(b, a, raw_rppg)
 
                 # Z-normalization
-                filtered = (filtered - np.mean(filtered)) / (np.std(filtered) + 1e-9)
-
-                # Tambahan: Savitzky-Golay filter (smoothing)
-                smoothed = signal.savgol_filter(filtered, window_length=11, polyorder=3)
-
-                # Tambahan: Normalisasi 0–1 untuk tampilan
-                normalized = (smoothed - np.min(smoothed)) / (np.max(smoothed) - np.min(smoothed) + 1e-9)
+                filtered = (filtered - np.mean(filtered)) / (np.std(filtered))
 
                 # Deteksi peak untuk hitung pulse rate
-                peaks, _ = signal.find_peaks(smoothed, distance=FPS * 0.5, prominence=0.5)
+                # peaks, _ = signal.find_peaks(filtered, distance=FPS * 0.5, prominence=0.5)
+                peaks, _ = signal.find_peaks(filtered, prominence=0.5)
                 if len(peaks) > 1:
-                    duration = len(smoothed) / FPS
-                    pulse_rate = int(60 * len(peaks) / duration)
+                    peak_times = np.array(peaks) / FPS  # Konversi ke detik
+                    rr_intervals = np.diff(peak_times)
+                    avg_rr = np.mean(rr_intervals)
+                    if avg_rr > 0:
+                        pulse_rate = round(60 / avg_rr)  # Presisi desimal
 
-                rppg_signal = normalized.tolist()
+
+                rppg_signal = filtered.tolist()
 
         time.sleep(PROCESS_INTERVAL)
 
