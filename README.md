@@ -76,6 +76,6 @@ pip install -r requirements.txt
 <li> After that, please run the following command to run the program:</li>
 
 ```bash
-python deployment\app.py
+python app.py
 ```
 
