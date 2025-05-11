@@ -80,31 +80,38 @@
 <body>
     <h1>Demo Pulse Rate Estimation</h1>
 
+    <!-- Tampilan video dari kamera -->
     <div id="video-container">
         <img id="video-feed" src="/video_feed" width="640" height="480">
     </div>
 
+    <!-- Tombol start dan stop -->
     <div id="controls">
         <button id="startBtn" onclick="startRecording()">Start</button>
         <button id="stopBtn" onclick="stopRecording()" disabled>Stop</button>
     </div>
 
+    <!-- Teks untuk menampilkan denyut nadi -->
     <h2 id="pulse-rate">Pulse Rate: Waiting...</h2>
 
+    <!-- Plot sinyal rPPG -->
     <div id="plot-container">
         <canvas id="rppgCanvas" width="640" height="200"></canvas>
     </div>
 
     <script>
+        // Inisialisasi canvas untuk menggambar grafik
         let canvas = document.getElementById("rppgCanvas");
         let ctx = canvas.getContext("2d");
 
+        // Variabel untuk menyimpan status perekaman
         let isRecording = false;
-        let dataPoints = Array(640).fill(100);
-        let signalAmplification = 60;  // Adjusted for normalized input
-        let baselineY = 100;
-        let animationInProgress = false;
+        let dataPoints = Array(640).fill(100); // Titik data awal (baseline)
+        let signalAmplification = 60;          // Penguatan sinyal visual
+        let baselineY = 100;                   // Garis tengah sinyal
+        let animationInProgress = false;        
 
+        // Inisialisasi grafik saat halaman pertama kali dimuat
         function initGraph() {
             ctx.fillStyle = "black";
             ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -112,6 +119,7 @@
             drawGraph();
         }
 
+        // Menggambar garis referensi di tengah
         function drawCenterLine() {
             ctx.beginPath();
             ctx.strokeStyle = "#003300";
@@ -121,16 +129,17 @@
             ctx.stroke();
         }
 
+        // Proses data sinyal baru dari server
         function processNewSignal(newData) {
             if (!isRecording || !newData || newData.length === 0) return;
-            
-            // Wait for any ongoing animation to complete
             if (animationInProgress) return;
             
+            // Transformasi nilai sinyal ke koodinat canvas
             let processedData = newData.map(val => baselineY - (val - 0.5) * signalAmplification);
             animateSignal(processedData);
         }
 
+        // Animasi grafik sinyal secara real-time
         function animateSignal(newPoints, index = 0) {
             if (!isRecording || index >= newPoints.length) {
                 animationInProgress = false;
@@ -139,47 +148,45 @@
             
             animationInProgress = true;
 
-            // Shift all data points left by one position
+            // Geser dara ke kiri untuk animasi berjalan
             for (let i = 0; i < dataPoints.length - 1; i++) {
                 dataPoints[i] = dataPoints[i + 1];
             }
             
-            // Add new point at the end
+            // Tambahkan titik data baru di akhir
             dataPoints[dataPoints.length - 1] = newPoints[index];
 
-            // Redraw the entire graph
+            // Gambar ulang grafik
             drawGraph();
 
-            // Continue animation with next point
+            // Lanjutkan animasi ke titik berikutnya
             setTimeout(() => {
                 animateSignal(newPoints, index + 1);
             }, 20);
         }
 
+        // Menggambar ulang seluruh sinyal
         function drawGraph() {
-            // Clear the entire canvas
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             ctx.fillStyle = "black";
             ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-            // Draw center reference line
             drawCenterLine();
 
-            // Create gradient for line fading effect
+            // Buat gradasi warna hijau untuk sinyal
             let gradient = ctx.createLinearGradient(0, 0, canvas.width, 0);
             gradient.addColorStop(0, "rgba(0, 255, 0, 1)");
             gradient.addColorStop(0.9, "rgba(0, 255, 0, 0.3)");
             gradient.addColorStop(1, "rgba(0, 255, 0, 0)");
 
-            // Draw the signal line
+            // Gambar garis sinyal
             ctx.beginPath();
             ctx.strokeStyle = gradient;
             ctx.lineWidth = 2;
             
-            // Begin path at first point
+            // Mulai dari titik pertama
             ctx.moveTo(0, dataPoints[0]);
             
-            // Draw smooth curve through all points
+            // Gambar garis ke setiap titik data
             for (let i = 1; i < dataPoints.length; i++) {
                 ctx.lineTo(i, dataPoints[i]);
             }
@@ -187,6 +194,7 @@
             ctx.stroke();
         }
 
+        // Fungsi saat tombol "Start" ditekan
         function startRecording() {
             fetch('/start_recording', { method: 'POST' })
                 .then(response => response.json())
@@ -205,6 +213,7 @@
                 });
         }
 
+        // Fungsi saat tombol "Stop" ditekan
         function stopRecording() {
             isRecording = false;
             document.getElementById('startBtn').disabled = false;
@@ -216,6 +225,7 @@
                 .catch(error => console.error('Error stopping recording:', error));
         }
 
+        // Ambil sinyal rPPG secara real-time dari server
         function getRealTimeSignal() {
             if (!isRecording) return;
 
@@ -233,6 +243,7 @@
                 });
         }
 
+        // Ambil nilai denyut nadi terbaru dari server
         function checkPulseRate() {
             if (!isRecording) return;
 
@@ -250,6 +261,7 @@
                 });
         }
 
+        // Inisialisasi awal saat halaman dimuat
         initGraph();
     </script>
 </body>
